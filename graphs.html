@@ -84,7 +84,7 @@
 			$('#scale_menu li').removeClass('active');
 			$('#scale' + period).addClass('active');
 			
-			d3.json('/web/currency_info', function(currency_info) {
+			d3.json('../web/currency_info', function(currency_info) {
 				d3.selectAll('.symbol').text(currency_info.symbol);
 			});
 		</script>
