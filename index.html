@@ -26,6 +26,8 @@
                 stroke-width: 1.4;
                 fill: none;
             }
+	    
+	    .table td { line-height: 40px; }
             
             text {
                 font-family: Sans-serif;
@@ -52,8 +54,8 @@
 				
 				d3.json('../current_payouts', function(pays) {
 				    d3.json('../payout_addr', function(addr) {
-				    	d3.select('#payout_addr').text(addr);
-				        d3.select('#payout_amount').text(addr in pays ? pays[addr] : 0);
+				        d3.select('#payout_addr').text(addr).attr('href', currency_info.address_explorer_url_prefix + addr);
+					d3.select('#payout_amount').text(addr in pays ? pays[addr] : 0);
 				    });
 				    
 				    var arr = []; for(var i in pays) arr.push(i); arr.sort(function(a, b){return pays[b] - pays[a]});
@@ -98,6 +100,16 @@
 			    fill('../web/tails', '#tails');
 			    fill('../web/my_share_hashes', '#my_share_hashes');
 			}
+
+			var price_usd,price_eur;
+			function UpdatePrice()
+                        {
+                                d3.json('https://api.bitcoinaverage.com/no-mtgox/all', function(price_data) {
+                                        d3.select('#price_eur').text(price_eur=price_data.EUR.averages.last);
+                                        d3.select('#price_usd').text(price_usd=price_data.USD.averages.last);
+                                });
+                        }
+			
                         var plot1;
                         var plot2;
 			function UpdateData()
@@ -116,6 +128,9 @@
 					d3.select('#shares_total').text(local_stats.shares.total);
 					d3.select('#shares_orphan').text(local_stats.shares.orphan);
 					d3.select('#shares_dead').text(local_stats.shares.dead);
+
+					document.title=d3.format('.3s')(local) + 'H/s (' + d3.format('.2p')(local_dead/local)
+                                                        + ') | ' + local_stats.shares.total + ' | P2Pool';
 					
 					d3.select('#efficiency').text(local_stats.efficiency != null ? d3.format('.4p')(local_stats.efficiency) : '???')
 					d3.select('#uptime_days').text(d3.format('.3f')(local_stats.uptime / 60 / 60 / 24));
@@ -137,8 +152,13 @@
 						
 						var time_to_block = local_stats.attempts_to_block/global_stats.pool_hash_rate;
 						d3.select('#time_to_block').text(d3.format('.3r')(time_to_block/3600) + " hours");
+
+						var expected = local/global_stats.pool_hash_rate*local_stats.block_value*(1-local_stats.donation_proportion);
+						var expected_day = (24/(time_to_block/3600))*expected;
+						d3.select('#price_eur_day').text(d3.format('.2f')(price_eur*expected_day));
+                                                d3.select('#price_usd_day').text(d3.format('.2f')(price_usd*expected_day));
 						
-						d3.select('#expected_payout_amount').text(d3.format('.3r')(local/global_stats.pool_hash_rate*local_stats.block_value*(1-local_stats.donation_proportion)));
+						d3.select('#expected_payout_amount').text(d3.format('.3r')(expected));
 										  
 										  
 						  /// ============================================
@@ -221,6 +241,13 @@
 				UpdateData();
 			}
 		}
+		function AutoRefreshPrice()
+                {
+                        if($("#autorefresh").prop('checked'))
+                        {
+                                UpdatePrice();
+                        }
+                }
         </script>
     </head>
     <body>
@@ -248,7 +275,7 @@
 	<ul class="nav nav-tabs" id="myTab">
 	  	<li class="active"><a href="#stats" data-toggle="tab"><i class="icon-user"></i>&nbsp;Pool stats</a></li>
 	  	<li><a href="#shares" data-toggle="tab"><i class="icon-refresh"></i>&nbsp;Share explorer</a></li>
-	  	<li><a href="#lastblocks" data-toggle="tab"><i class="icon-list-alt"></i>&nbsp;Last blocks</a></li>
+	  	<li><a href="#lastblocks" onclick="LoadData();" data-toggle="tab"><i class="icon-list-alt"></i>&nbsp;Last blocks</a></li>
 		<li><a href="#mainnodepayout" data-toggle="tab"><i class="icon-download-alt"></i>&nbsp;Payout</a></li>
 	</ul>
 	<div class="tab-content">
@@ -264,7 +291,7 @@
 				      <li id="scale3"><a href="javascript:ChangeCurrentPeriod('week', 'scale3');">Week</a></li>
 				      <li id="scale4"><a href="javascript:ChangeCurrentPeriod('month', 'scale4');">Month</a></li>
 				      <li id="scale5"><a href="javascript:ChangeCurrentPeriod('year', 'scale5');">Year</a></li>
-				      <li><input type="checkbox" name="autorefresh" id="autorefresh" /><label for="autorefresh">Auto-refresh</label></li>
+				      <li><input type="checkbox" name="autorefresh" id="autorefresh" checked="checked" /><label for="autorefresh">Auto-refresh</label></li>
 				    </ul>
 				  </div>
 				</div>
@@ -285,9 +312,15 @@
 							  <td><span id="shares_total" class="label"></span> total (<span id="shares_orphan" class="label label-warning"></span> orphaned, <span id="shares_dead" class="label label-warning"></span> dead) Efficiency: <span class="label label-info" id="efficiency"></span></td>
 							  <td></td>
 							  <td><h5>Payout if a block were found NOW</h5></td>
-							  <td><span id="payout_amount"></span> <span class="symbol"></span></td>
+							  <td><span id="payout_amount" class="label"></span> <span class="symbol"></span></td>
 							</tr>
 							<tr>
+                                                          <td><h5>Payout Address</h5></td>
+                                                          <td><a id="payout_addr"></a></td>
+                                                          <td></td>
+                                                          <td><h5>Expected after mining for 24 hours</h5></td>
+                                                          <td><span id="expected_payout_amount" class="label"></span> <span class="symbol"></span> per block.</td>
+                                                        </tr>
 							<tr>
 							  <td><h5>Pool rate</h5></td>
 							  <td><span id="pool_rate" class="label label-inverse"></span> (<span id="pool_stale"></span> DOA+orphan)</td>
@@ -302,12 +335,27 @@
 							  <td><h5>Peers</h5></td>
 							  <td><span id="peers_out"></span> out, <span id="peers_in"></span> in</td>
 							</tr>
+							<tr>
 							  <td><h5>Current block value</h5></td>
 							  <td><span id="block_value" class="label label-inverse"></span> <span class="symbol"></span></td>
 							  <td></td>
 							  <td><h5>Expected time to block</h5></td>
 							  <td><span id="time_to_block" class="label"></span></td>
 							</tr>
+                                                        <tr>
+                                                          <td><h5>BTC price in €</h5></td>
+                                                          <td><span id="price_eur" class="label"></span> €</td>
+                                                          <td></td>
+                                                          <td><h5>BTC price in $</h5></td>
+                                                          <td><span id="price_usd" class="label"></span> $</td>
+                                                        </tr>
+                                                        <tr>
+                                                          <td><h5>Expected earnings in € per day</h5></td>
+                                                          <td><span id="price_eur_day" class="label"></span> €</td>
+                                                          <td></td>
+                                                          <td><h5>Expected earnings in $ per day</h5></td>
+                                                          <td><span id="price_usd_day" class="label"></span> $</td>
+                                                        </tr>
 						</tbody>
 					</table>
 				</div>
@@ -640,8 +688,10 @@
 		<script type="text/javascript">
 		$(document).ready(function() {
 			LoadData();
+			UpdatePrice();
 		  	UpdateData();
 			setInterval("AutoRefresh()", 5 * 1000);
+			setInterval("AutoRefreshPrice()", 60 * 1000);
 		    	$('#myTab a:first').tab('show');
 		});
         </script>
