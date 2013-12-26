@@ -529,7 +529,7 @@
                             userlist.sort();
                             d3.select("#miners").selectAll("*").remove();
                             var div = d3.select("#miners").selectAll().data(userlist).enter().append("div");
-                            div.append("h3").text(function(u) { return u });
+                            div.append("a").attr('href',  function(u) {return 'https://blockchain.info/address/' +  u} ).attr('target', '_blank').append("h3").text(function(u) { return u });
                             div.append("svg:svg").each(function(u) {
                                 plot(d3.select(this), "H/s", "H", [
                                     {"data": data.map(function(d){ return [d[0], u in d[1] ? d[1][u] : d[3], d[2]] }), "color": "#0000FF", "label": "Total"},
